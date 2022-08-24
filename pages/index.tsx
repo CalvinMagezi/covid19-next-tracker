@@ -1,86 +1,181 @@
-import type { NextPage } from 'next'
-import Head from 'next/head'
-import Image from 'next/image'
+import type { NextPage } from "next";
+import Head from "next/head";
+import Image from "next/image";
+import Stats from "../components/Stats";
+import { GetStaticProps } from "next";
+import { Box, Heading, Select } from "@chakra-ui/react";
+import { ChangeEvent, useEffect, useState } from "react";
+import {
+  CurrentCountries,
+  CurrentCountry,
+  CurrentCountryInfo,
+} from "../atoms/CountriesAtom";
+import { useRecoilState, useRecoilValue } from "recoil";
+import TopLayout from "../components/layouts/TopLayout";
+import MapComponent from "../components/map";
+import ContinentStats from "../components/Stats/ContinentStats";
+import toast from "react-hot-toast";
+import LineGraph from "../components/graphs/LineGraph";
+import { CurrentCaseType } from "../atoms/CardsAtom";
+import dynamic from "next/dynamic";
 
-const Home: NextPage = () => {
+const NoSSRMap = dynamic(() => import("../components/map"), {
+  ssr: false,
+});
+
+const Home = ({
+  stats,
+  countries,
+  continents,
+}: {
+  stats: any;
+  countries: any;
+  continents: any;
+}) => {
+  const [allCountries, setAllCountries] = useRecoilState(CurrentCountries);
+  const [currentCountry, setCurrentCountry] = useRecoilState(CurrentCountry);
+  const [countryInfo, setCountryInfo] = useRecoilState(CurrentCountryInfo);
+  const currentCaseType = useRecoilValue(CurrentCaseType);
+  const [mapCenter, setMapCenter] = useState({ lat: 34.80746, lng: -40.4796 });
+  const [zoom, setZoom] = useState(3);
+
+  const onCountryChange = async (countryCode: string) => {
+    console.log(countryCode);
+    setCurrentCountry(countryCode);
+    toast.loading("Fetching Country Info", { duration: 4000 });
+
+    const url =
+      countryCode === "worldwide"
+        ? "https://disease.sh/v3/covid-19/all"
+        : `https://disease.sh/v3/covid-19/countries/${countryCode}`;
+
+    await fetch(url)
+      .then((response) => response.json())
+      .then((data) => {
+        toast.dismiss();
+        setCountryInfo(data);
+        console.log(data);
+        if (countryCode === "worldwide") {
+          setMapCenter({
+            lat: 34.80746,
+            lng: -40.4796,
+          });
+        } else {
+          // setMapCenter([data.countryInfo.lat, data.countryInfo.long]);
+          setMapCenter({
+            lat: data.countryInfo.lat ? data.countryInfo.lat : 34.80746,
+            lng: data.countryInfo.long ? data.countryInfo.long : -40.4796,
+          });
+        }
+        setZoom(4);
+        toast.success(`Successfully fetched country data`, { duration: 4000 });
+      })
+      .catch((error) => {
+        console.log(error);
+        toast.dismiss();
+        toast.error("Failed to fetch Country Info", { duration: 4000 });
+      });
+  };
+
+  useEffect(() => {
+    if (!countries) return;
+    setAllCountries(countries);
+  }, []);
+
+  useEffect(() => {
+    setCountryInfo(stats);
+  }, []);
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center py-2">
-      <Head>
-        <title>Create Next App</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
+    <TopLayout>
+      <main className="grid grid-cols-1 gap-12 p-3 my-5` lg:grid-cols-3">
+        <div className="p-5 lg:col-span-2">
+          <div className="flex justify-between w-full">
+            <Heading
+              size="md"
+              letterSpacing={3}
+              className="font-bold text-red-600"
+            >
+              COVID-19 Tracker
+            </Heading>
+            <div>
+              <Select
+                defaultValue={"worldwide"}
+                onChange={(e) => onCountryChange(e.currentTarget.value)}
+              >
+                <option value="worldwide">Worldwide</option>
+                {allCountries?.map((country: any, index: number) => (
+                  <option key={index} value={country.value}>
+                    {country.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
 
-      <main className="flex w-full flex-1 flex-col items-center justify-center px-20 text-center">
-        <h1 className="text-6xl font-bold">
-          Welcome to{' '}
-          <a className="text-blue-600" href="https://nextjs.org">
-            Next.js!
-          </a>
-        </h1>
+          {countryInfo && <Stats stats={countryInfo} />}
+        </div>
+        <Box className="h-full p-5 rounded-sm shadow-lg border-opacity-40 lg:row-span-2">
+          <Heading className="text-center " size="md" letterSpacing={3}>
+            Live Cases By Continent
+          </Heading>
+          <hr className="my-2" />
+          <ContinentStats continents={continents} />
+          <Heading className="my-5 text-center" size="md" letterSpacing={3}>
+            Worldwide New Cases
+          </Heading>
+          <LineGraph caseType={currentCaseType} />
+        </Box>
 
-        <p className="mt-3 text-2xl">
-          Get started by editing{' '}
-          <code className="rounded-md bg-gray-100 p-3 font-mono text-lg">
-            pages/index.tsx
-          </code>
-        </p>
-
-        <div className="mt-6 flex max-w-4xl flex-wrap items-center justify-around sm:w-full">
-          <a
-            href="https://nextjs.org/docs"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Documentation &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Find in-depth information about Next.js features and its API.
-            </p>
-          </a>
-
-          <a
-            href="https://nextjs.org/learn"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Learn &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Learn about Next.js in an interactive course with quizzes!
-            </p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Examples &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Discover and deploy boilerplate example Next.js projects.
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Deploy &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
+        <div className="p-3 lg:col-span-2">
+          <NoSSRMap
+            countries={allCountries}
+            center={mapCenter}
+            zoom={zoom}
+            caseType={currentCaseType}
+          />
         </div>
       </main>
+    </TopLayout>
+  );
+};
 
-      <footer className="flex h-24 w-full items-center justify-center border-t">
-        <a
-          className="flex items-center justify-center gap-2"
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
-        </a>
-      </footer>
-    </div>
-  )
-}
+export default Home;
 
-export default Home
+export const getStaticProps: GetStaticProps = async (ctx) => {
+  const countries = await fetch("https://disease.sh/v3/covid-19/countries")
+    .then((response) => response.json())
+    .then((data) => {
+      const all = data.map((country: any) => ({
+        name: country.country,
+        value: country.countryInfo.iso2,
+        lat: country.countryInfo.lat,
+        long: country.countryInfo.long,
+        cases: country.cases,
+        deaths: country.deaths,
+        recovered: country.recovered,
+        flag: country.countryInfo.flag,
+      }));
+      return all;
+    });
+
+  const stats = await fetch("https://disease.sh/v3/covid-19/all").then(
+    (response) => {
+      return response.json();
+    }
+  );
+
+  const continents = await fetch(
+    "https://disease.sh/v3/covid-19/continents"
+  ).then((response) => {
+    return response.json();
+  });
+
+  return {
+    props: {
+      countries,
+      stats,
+      continents,
+    },
+  };
+};
